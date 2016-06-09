@@ -1,0 +1,23 @@
+@author Guilherme Andrade <nlocks(at)gandrade(dot)net>
+@copyright 2016 Guilherme Andrade
+@version 1.0.0
+@title nlocks
+@doc `nlocks': Native spinlocks for Erlang
+
+<hr/>
+
+`nlocks' provides native spinlocks that can be shared between Erlang local processes.
+
+<pre lang="erlang">
+Lock = nlocks:new(),
+Transaction = fun() -&gt;
+    io:format("hello from ~p at ~p~n", [self(), os:timestamp()]),
+    timer:sleep(100)
+end,
+
+[spawn(fun () -&gt; nlocks:transaction(Lock, Transaction) end) || _ &lt;- lists:seq(1, 4)].
+% hello from &lt;0.66.0&gt; at {1465,509871,454813}
+% hello from &lt;0.69.0&gt; at {1465,509871,555028}
+% hello from &lt;0.67.0&gt; at {1465,509871,656021}
+% hello from &lt;0.68.0&gt; at {1465,509871,757031}
+</pre>
