@@ -82,7 +82,7 @@ struct Lock {
 
 struct Ownership {
     ERL_NIF_TERM pid;
-    Lock* lock = nullptr;
+    Lock** lockResource = nullptr;
 };
 
 #define LOCK_RESOURCE "nlocks.lock"
@@ -97,21 +97,27 @@ static std::atomic<uint64_t> acquiredLocksCount;
 static std::atomic<uint64_t> contentionCount;
 
 static void DeleteLockResource(ErlNifEnv* /*env*/, void* resource) {
-    Lock* lock = static_cast<Lock*>(resource);
+    Lock** lockResource = static_cast<Lock**>(resource);
+    Lock* lock = *lockResource;
     assert(lock->ownership == nullptr);
+    delete lock;
     allocatedLocksCount--;
 }
 
 static void DeleteOwnershipResource(ErlNifEnv* /*env*/, void* resource) {
-    Ownership* ownership = static_cast<Ownership*>(resource);
-    if (ownership->lock != nullptr) {
+    Ownership** ownershipResource = static_cast<Ownership**>(resource);
+    Ownership* ownership = *ownershipResource;
+    if (ownership->lockResource != nullptr) {
         // process was probably brutally killed; we never released the lock
-        assert(ownership->lock->ownership == ownership);
-        ownership->lock->ownership.store(nullptr);
-        enif_release_resource(ownership->lock);
-        ownership->lock = nullptr;
+        Lock** lockResource = ownership->lockResource;
+        Lock* lock = *lockResource;
+        assert(lock->ownership == ownership);
+        lock->ownership.store(nullptr);
+        enif_release_resource(lockResource);
+        ownership->lockResource = nullptr;
         acquiredLocksCount--;
     }
+    delete ownership;
     allocatedOwnershipsCount--;
 }
 
@@ -143,31 +149,37 @@ int upgrade(ErlNifEnv* /*env*/, void** /*priv_data*/, void** /*old_priv_data*/, 
 
 /****************************************************************/
 static ERL_NIF_TERM NewLock(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM[] /*argv*/) {
-    Lock* lock = static_cast<Lock*>(enif_alloc_resource(lockResourceType, sizeof(Lock)));
-    memset(lock, 0, sizeof(Lock));
-    ERL_NIF_TERM term = WrapResourceTerm(env, LOCK_RESOURCE, enif_make_resource(env, lock));
-    enif_release_resource(lock);
+    Lock** lockResource = static_cast<Lock**>(enif_alloc_resource(lockResourceType, sizeof(Lock*)));
+    Lock* lock= new Lock;
+    lock->ownership.store(nullptr);
+    *lockResource = lock;
+    ERL_NIF_TERM term = WrapResourceTerm(env, LOCK_RESOURCE, enif_make_resource(env, lockResource));
+    enif_release_resource(lockResource);
     allocatedLocksCount++;
     return term;
 }
 
 // not exported, used internally
 static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    Lock** lockResource = nullptr;
     Lock* lock = nullptr;
+    Ownership** ownershipResource = nullptr;
     Ownership* ownership = nullptr;
     uint64_t deadline = 0;
     Ownership* currentOwnership = nullptr;
 
-    assert(enif_get_resource(env, argv[0], lockResourceType, reinterpret_cast<void**>(&lock)));
-    assert(enif_get_resource(env, argv[1], ownershipResourceType, reinterpret_cast<void**>(&ownership)));
+    assert(enif_get_resource(env, argv[0], lockResourceType, reinterpret_cast<void**>(&lockResource)));
+    assert(enif_get_resource(env, argv[1], ownershipResourceType, reinterpret_cast<void**>(&ownershipResource)));
     assert(enif_get_uint64(env, argv[2], &deadline));
 
     if ((deadline > 0) && (CurrentTimeMilliseconds() >= deadline)) {
         contentionCount--;
-        enif_release_resource(ownership);
+        enif_release_resource(ownershipResource);
         return WrapError(env, "timeout");
     }
 
+    lock = *lockResource;
+    ownership = *ownershipResource;
     currentOwnership = lock->ownership.load(std::memory_order_relaxed);
     if ((currentOwnership == nullptr)
             && lock->ownership.compare_exchange_weak(
@@ -181,9 +193,9 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
         ErlNifPid selfPid;
         enif_self(env, &selfPid);
         ownership->pid = enif_make_pid(env, &selfPid);
-        ownership->lock = lock;
-        enif_keep_resource(lock);
-        enif_release_resource(ownership);
+        ownership->lockResource = lockResource;
+        enif_keep_resource(lockResource);
+        enif_release_resource(ownershipResource);
         ERL_NIF_TERM wrappedOwnershipTerm = WrapResourceTerm(env, OWNERSHIP_RESOURCE, argv[1]);
         return WrapSuccess(env, wrappedOwnershipTerm);
     }
@@ -195,13 +207,13 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
 
 static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM lockTerm;
-    Lock* lock = nullptr;
+    Lock** lockResource = nullptr;
     unsigned timeout = 0;
     uint64_t deadline = 0;
 
     if (not UnwrapResourceTerm(env, argv[0], &lockTerm))
         return enif_make_badarg(env);
-    if (not enif_get_resource(env, lockTerm, lockResourceType, reinterpret_cast<void**>(&lock)))
+    if (not enif_get_resource(env, lockTerm, lockResourceType, reinterpret_cast<void**>(&lockResource)))
         return enif_make_badarg(env);
 
     if (not enif_get_uint(env, argv[1], &timeout)) {
@@ -216,16 +228,19 @@ static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF
     ErlNifPid self;
     enif_self(env, &self);
 
-    Ownership* ownership = static_cast<Ownership*>(
-            enif_alloc_resource(ownershipResourceType, sizeof(Ownership)));
-    memset(ownership, 0, sizeof(Ownership));
+    Ownership** ownershipResource = static_cast<Ownership**>(
+            enif_alloc_resource(ownershipResourceType, sizeof(Ownership*)));
+    *ownershipResource = new Ownership;
     allocatedOwnershipsCount++;
     contentionCount++;
 
     int newArgc = 3;
+    /* Using good old malloc(); not sure where or how the following is freed but manually
+       freeing it in AcquireOwnershipRecursive causes double-free crashes, so it's reasonable
+       to assume the VM is freeing it on its own and, if so, it's certainly not using delete[] */
     ERL_NIF_TERM* newArgv = static_cast<ERL_NIF_TERM*>(malloc(sizeof(ERL_NIF_TERM) * newArgc));
     newArgv[0] = lockTerm;
-    newArgv[1] = enif_make_resource(env, ownership);
+    newArgv[1] = enif_make_resource(env, ownershipResource);
     newArgv[2] = enif_make_uint64(env, deadline);
     return enif_schedule_nif(
             env, "AcquireOwnershipRecursive", 0,
@@ -234,24 +249,28 @@ static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF
 
 static ERL_NIF_TERM ReleaseOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[]) {
     ERL_NIF_TERM ownershipTerm;
+    Ownership** ownershipResource = nullptr;
     Ownership* ownership = nullptr;
     if (not UnwrapResourceTerm(env, argv[0], &ownershipTerm))
         return enif_make_badarg(env);
-    if (not enif_get_resource(env, ownershipTerm, ownershipResourceType, reinterpret_cast<void**>(&ownership)))
+    if (not enif_get_resource(env, ownershipTerm, ownershipResourceType,
+                reinterpret_cast<void**>(&ownershipResource)))
         return enif_make_badarg(env);
+    ownership = *ownershipResource;
 
     ErlNifPid selfPid;
     enif_self(env, &selfPid);
     if (not enif_is_identical(enif_make_pid(env, &selfPid), ownership->pid))
         return WrapError(env, "not_allowed");
-    else if (ownership->lock == nullptr)
+    else if (ownership->lockResource == nullptr)
         return WrapError(env, "already_released");
     else {
-        Lock* lock = ownership->lock;
+        Lock** lockResource = ownership->lockResource;
+        Lock* lock = *lockResource;
         assert(lock->ownership.load() == ownership);
-        ownership->lock = nullptr;
+        ownership->lockResource = nullptr;
         lock->ownership.store(nullptr);
-        enif_release_resource(lock);
+        enif_release_resource(lockResource);
         acquiredLocksCount--;
         return enif_make_atom(env, "ok");
     }

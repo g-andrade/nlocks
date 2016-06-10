@@ -26,13 +26,13 @@ end,
 </pre>
 
 == Brutal kills and unreleased locks ==
-Hackish solution. Other than setting up some sort of monitor in the Erlang land, I found no practical way to deal with these other than making use of _ownership_ objects, references to which should never leave the process under which they were created; the release therefore becomes dependent on the garbage collector calling their destructor, but this also makes it more convenient for regular kills that forget to clean up.
+Hackish solution. Other than setting up some sort of monitor in the Erlang land, I found no practical way to deal with these other than making use of _ownership_ objects, references to which should never leave the process under which they were created; the release therefore becomes dependent on the garbage collector calling their destructor, but this also makes it more convenient for regularly terminated processes that forget to clean up.
 
 == Ownership objects ==
 <pre lang="c++">
 struct Ownership {
     ERL_NIF_TERM pid;
-    Lock* lock;
+    Lock** lockResource;
 };
 </pre>
 
