@@ -1,0 +1,14 @@
+{application, nlocks,
+ [
+  {description, "Native spinlocks"},
+  {vsn, git},
+  {modules, [
+             nlocks
+            ]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
