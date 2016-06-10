@@ -156,25 +156,16 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
     Lock* lock = nullptr;
     Ownership* ownership = nullptr;
     uint64_t deadline = 0;
-    ERL_NIF_TERM errorReturn;
     Ownership* currentOwnership = nullptr;
 
-    if (not enif_get_resource(env, argv[0], lockResourceType, reinterpret_cast<void**>(&lock))) {
-        errorReturn = enif_make_badarg(env);
-        goto give_up;
-    }
-    if (not enif_get_resource(env, argv[1], ownershipResourceType, reinterpret_cast<void**>(&ownership))) {
-        errorReturn = enif_make_badarg(env);
-        goto give_up;
-    }
-    if (not enif_get_uint64(env, argv[2], &deadline)) {
-        errorReturn = enif_make_badarg(env);
-        goto give_up;
-    }
+    assert(enif_get_resource(env, argv[0], lockResourceType, reinterpret_cast<void**>(&lock)));
+    assert(enif_get_resource(env, argv[1], ownershipResourceType, reinterpret_cast<void**>(&ownership)));
+    assert(enif_get_uint64(env, argv[2], &deadline));
 
     if ((deadline > 0) && (CurrentTimeMilliseconds() >= deadline)) {
-        errorReturn = WrapError(env, "timeout");
-        goto give_up;
+        contentionCount--;
+        enif_release_resource(ownership);
+        return WrapError(env, "timeout");
     }
 
     currentOwnership = lock->ownership.load(std::memory_order_relaxed);
@@ -200,12 +191,6 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
     return enif_schedule_nif(
             env, "AcquireOwnershipRecursive", 0,
             AcquireOwnershipRecursive, argc, argv);
-
-give_up:
-    contentionCount--;
-    if (ownership != nullptr)
-        enif_release_resource(ownership);
-    return errorReturn;
 }
 
 static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[]) {
