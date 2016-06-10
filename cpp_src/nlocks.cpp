@@ -84,8 +84,8 @@ struct Ownership {
 #define LOCK_RESOURCE "nlocks.lock"
 #define OWNERSHIP_RESOURCE "nlocks.ownership"
 
-static ErlNifResourceType* lockResourceType;
-static ErlNifResourceType* ownershipResourceType;
+static ErlNifResourceType* lockResourceType = nullptr;
+static ErlNifResourceType* ownershipResourceType = nullptr;
 
 static void DeleteLockResource(ErlNifEnv* /*env*/, void* resource) {
     Lock* lock = static_cast<Lock*>(resource);
@@ -95,7 +95,7 @@ static void DeleteLockResource(ErlNifEnv* /*env*/, void* resource) {
 static void DeleteOwnershipResource(ErlNifEnv* /*env*/, void* resource) {
     Ownership* ownership = static_cast<Ownership*>(resource);
     if (ownership->lock != nullptr) {
-        // early death; we never released the lock
+        // process was probably brutally killed; we never released the lock
         assert(ownership->lock->ownership == ownership);
         ownership->lock->ownership.store(nullptr);
         enif_release_resource(ownership->lock);
@@ -140,20 +140,34 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
     Lock* lock = nullptr;
     Ownership* ownership = nullptr;
     uint64_t deadline = 0;
-    if (not enif_get_resource(env, argv[0], lockResourceType, reinterpret_cast<void**>(&lock)))
-        return enif_make_badarg(env);
-    if (not enif_get_resource(env, argv[1], ownershipResourceType, reinterpret_cast<void**>(&ownership)))
-        return enif_make_badarg(env);
-    if (not enif_get_uint64(env, argv[2], &deadline))
-        return enif_make_badarg(env);
+    ERL_NIF_TERM errorReturn;
+    Ownership* currentOwnership = nullptr;
 
-    uint64_t currentTime = CurrentTimeMilliseconds();
-    if (currentTime >= deadline) {
-        return WrapError(env, "timeout");
+    if (not enif_get_resource(env, argv[0], lockResourceType, reinterpret_cast<void**>(&lock))) {
+        errorReturn = enif_make_badarg(env);
+        goto give_up;
+    }
+    if (not enif_get_resource(env, argv[1], ownershipResourceType, reinterpret_cast<void**>(&ownership))) {
+        errorReturn = enif_make_badarg(env);
+        goto give_up;
+    }
+    if (not enif_get_uint64(env, argv[2], &deadline)) {
+        errorReturn = enif_make_badarg(env);
+        goto give_up;
     }
 
-    Ownership* currentOwnership = nullptr;
-    if (lock->ownership.compare_exchange_weak(currentOwnership, ownership)) {
+    if ((deadline > 0) && (CurrentTimeMilliseconds() >= deadline)) {
+        errorReturn = WrapError(env, "timeout");
+        goto give_up;
+    }
+
+    currentOwnership = lock->ownership.load(std::memory_order_relaxed);
+    if ((currentOwnership == nullptr)
+            && lock->ownership.compare_exchange_weak(
+                currentOwnership, ownership,
+                std::memory_order_release,
+                std::memory_order_relaxed))
+    {
         // locked by us
         ErlNifPid selfPid;
         enif_self(env, &selfPid);
@@ -164,13 +178,15 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
         ERL_NIF_TERM wrappedOwnershipTerm = WrapResourceTerm(env, OWNERSHIP_RESOURCE, argv[1]);
         return WrapSuccess(env, wrappedOwnershipTerm);
     }
-    else {
-        // locked by someone else
-        return enif_schedule_nif(
-                env, "AcquireOwnershipRecursive", 0,
-                AcquireOwnershipRecursive, argc, argv);
-    }
+    // locked by someone else
+    return enif_schedule_nif(
+            env, "AcquireOwnershipRecursive", 0,
+            AcquireOwnershipRecursive, argc, argv);
 
+give_up:
+    if (ownership != nullptr)
+        enif_release_resource(ownership);
+    return errorReturn;
 }
 
 static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[]) {
@@ -185,9 +201,7 @@ static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF
         return enif_make_badarg(env);
 
     if (not enif_get_uint(env, argv[1], &timeout)) {
-        if (enif_is_identical(argv[2], enif_make_atom(env, "infinity")))
-            deadline = std::numeric_limits<uint64_t>::max();
-        else
+        if (not enif_is_identical(argv[2], enif_make_atom(env, "infinity")))
             return enif_make_badarg(env);
     }
     else {
