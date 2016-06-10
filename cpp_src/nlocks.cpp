@@ -91,9 +91,15 @@ struct Ownership {
 static ErlNifResourceType* lockResourceType = nullptr;
 static ErlNifResourceType* ownershipResourceType = nullptr;
 
+static std::atomic<uint64_t> allocatedLocksCount;
+static std::atomic<uint64_t> allocatedOwnershipsCount;
+static std::atomic<uint64_t> acquiredLocksCount;
+static std::atomic<uint64_t> contentionCount;
+
 static void DeleteLockResource(ErlNifEnv* /*env*/, void* resource) {
     Lock* lock = static_cast<Lock*>(resource);
     assert(lock->ownership == nullptr);
+    allocatedLocksCount--;
 }
 
 static void DeleteOwnershipResource(ErlNifEnv* /*env*/, void* resource) {
@@ -104,7 +110,9 @@ static void DeleteOwnershipResource(ErlNifEnv* /*env*/, void* resource) {
         ownership->lock->ownership.store(nullptr);
         enif_release_resource(ownership->lock);
         ownership->lock = nullptr;
+        acquiredLocksCount--;
     }
+    allocatedOwnershipsCount--;
 }
 
 static int load(ErlNifEnv* env, void** /*priv*/, ERL_NIF_TERM /*load_info*/) {
@@ -118,6 +126,10 @@ static int load(ErlNifEnv* env, void** /*priv*/, ERL_NIF_TERM /*load_info*/) {
             OWNERSHIP_RESOURCE,
             DeleteOwnershipResource,
             ERL_NIF_RT_CREATE, nullptr);
+    allocatedLocksCount.store(0);
+    allocatedOwnershipsCount.store(0);
+    acquiredLocksCount.store(0);
+    contentionCount.store(0);
     return 0;
 }
 
@@ -135,6 +147,7 @@ static ERL_NIF_TERM NewLock(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM[] /
     memset(lock, 0, sizeof(Lock));
     ERL_NIF_TERM term = WrapResourceTerm(env, LOCK_RESOURCE, enif_make_resource(env, lock));
     enif_release_resource(lock);
+    allocatedLocksCount++;
     return term;
 }
 
@@ -172,6 +185,8 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
                 std::memory_order_relaxed))
     {
         // locked by us
+        contentionCount--;
+        acquiredLocksCount++;
         ErlNifPid selfPid;
         enif_self(env, &selfPid);
         ownership->pid = enif_make_pid(env, &selfPid);
@@ -187,6 +202,7 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
             AcquireOwnershipRecursive, argc, argv);
 
 give_up:
+    contentionCount--;
     if (ownership != nullptr)
         enif_release_resource(ownership);
     return errorReturn;
@@ -218,6 +234,8 @@ static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF
     Ownership* ownership = static_cast<Ownership*>(
             enif_alloc_resource(ownershipResourceType, sizeof(Ownership)));
     memset(ownership, 0, sizeof(Ownership));
+    allocatedOwnershipsCount++;
+    contentionCount++;
 
     int newArgc = 3;
     ERL_NIF_TERM* newArgv = static_cast<ERL_NIF_TERM*>(malloc(sizeof(ERL_NIF_TERM) * newArgc));
@@ -249,14 +267,42 @@ static ERL_NIF_TERM ReleaseOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF
         ownership->lock = nullptr;
         lock->ownership.store(nullptr);
         enif_release_resource(lock);
+        acquiredLocksCount--;
         return enif_make_atom(env, "ok");
     }
+}
+
+static ERL_NIF_TERM GetInternalInfo(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM[] /*argv*/) {
+    decltype(Lock::ownership) ownershipExample;
+    return enif_make_list(env,
+            6,
+            enif_make_tuple2(env,
+                enif_make_atom(env, "allocated_locks"),
+                enif_make_uint64(env, allocatedLocksCount.load())),
+            enif_make_tuple2(env,
+                enif_make_atom(env, "allocated_ownerships"),
+                enif_make_uint64(env, allocatedOwnershipsCount.load())),
+            enif_make_tuple2(env,
+                enif_make_atom(env, "acquired_locks"),
+                enif_make_uint64(env, acquiredLocksCount.load())),
+            enif_make_tuple2(env,
+                enif_make_atom(env, "contention"),
+                enif_make_uint64(env, contentionCount.load())),
+            enif_make_tuple2(env,
+                enif_make_atom(env, "has_lockfree_counters"),
+                MakeNifBoolean(env,
+                    allocatedLocksCount.is_lock_free()
+                    and allocatedOwnershipsCount.is_lock_free())),
+            enif_make_tuple2(env,
+                enif_make_atom(env, "has_lockfree_ownership"),
+                MakeNifBoolean(env, ownershipExample.is_lock_free())));
 }
 
 static ErlNifFunc nif_funcs[] = {
     {"new", 0, NewLock, 0},
     {"acquire_ownership", 2, AcquireOwnership, 0},
-    {"release_ownership", 1, ReleaseOwnership, 0}
+    {"release_ownership", 1, ReleaseOwnership, 0},
+    {"info", 0, GetInternalInfo, 0}
 };
 
 //ERL_NIF_INIT(nlocks_nif, nif_funcs, load, nullptr, upgrade, unload)

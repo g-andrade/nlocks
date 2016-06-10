@@ -12,6 +12,7 @@
 -export([release_ownership/1]). -ignore_xref({release_ownership, 1}).
 -export([transaction/2]).       -ignore_xref({transaction, 2}).
 -export([transaction/3]).       -ignore_xref({transaction, 3}).
+-export([info/0]).              -ignore_xref({info, 0}).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -66,6 +67,11 @@ transaction(Lock, Fun) ->
         -> {ok, FunResult :: term()} | {error, timeout}.
 transaction(Lock, Fun, Timeout) ->
     ownership_transaction(Fun, acquire_ownership(Lock, Timeout)).
+
+-spec info() -> [{allocated_locks | allocated_ownerships | acquired_locks | contention, non_neg_integer()} |
+                 {has_lockfree_counters | has_lockfree_ownership, boolean()}, ...].
+info() ->
+    erlang:nif_error(nif_library_not_loaded).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
