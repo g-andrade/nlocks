@@ -98,6 +98,19 @@ struct Lock {
 ```
 
 
+### <a name="Building">Building</a> ###
+
+The ERTS headers are required; if they're not available on a global include path, 'ERL_INCLUDE' can be explicitly defined.
+
+```bash
+
+% Example path
+ERL_INCLUDE=/opt/kerl/17.5/usr/include rebar compile
+
+```
+
+The NIF shared object will be dumped into the priv/ directory.
+
 
 ## Modules ##
 
