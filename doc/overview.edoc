@@ -68,3 +68,11 @@ struct Lock {
  {has_lockfree_counters,true},
  {has_lockfree_ownership,true}]
 </pre>
+
+== Building ==
+The ERTS headers are required; if they're not available on a global include path, 'ERL_INCLUDE' can be explicitly defined.
+<pre lang="bash">
+% Example path
+ERL_INCLUDE=/opt/kerl/17.5/usr/include rebar compile
+</pre>
+The NIF shared object will be dumped into the priv/ directory.
