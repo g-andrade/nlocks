@@ -29,19 +29,23 @@
 #include <chrono>
 #include <limits>
 
-static inline ERL_NIF_TERM WrapSuccess(ErlNifEnv* env, ERL_NIF_TERM term) {
+static ERL_NIF_TERM MakeNifBoolean(ErlNifEnv* env, bool flag) {
+    return (flag ? enif_make_atom(env, "true") : enif_make_atom(env, "false"));
+}
+
+static ERL_NIF_TERM WrapSuccess(ErlNifEnv* env, ERL_NIF_TERM term) {
     return enif_make_tuple2(env, enif_make_atom(env, "ok"), term);
 }
 
-static inline ERL_NIF_TERM WrapError(ErlNifEnv* env, ERL_NIF_TERM term) {
+static ERL_NIF_TERM WrapError(ErlNifEnv* env, ERL_NIF_TERM term) {
     return enif_make_tuple2(env, enif_make_atom(env, "error"), term);
 }
 
-static inline ERL_NIF_TERM WrapError(ErlNifEnv* env, const char* error) {
+static ERL_NIF_TERM WrapError(ErlNifEnv* env, const char* error) {
     return WrapError(env, enif_make_atom(env, error));
 }
 
-static inline ERL_NIF_TERM WrapResourceTerm(
+static ERL_NIF_TERM WrapResourceTerm(
         ErlNifEnv* env, const char* resourceTypeId, ERL_NIF_TERM resourceTerm)
 {
     return enif_make_tuple3(env,
@@ -50,7 +54,7 @@ static inline ERL_NIF_TERM WrapResourceTerm(
             resourceTerm);
 }
 
-static inline bool UnwrapResourceTerm(
+static bool UnwrapResourceTerm(
         ErlNifEnv* env, ERL_NIF_TERM wrappedResource, ERL_NIF_TERM* resourceTerm)
 {
     int tupleArity = 0;
@@ -63,7 +67,7 @@ static inline bool UnwrapResourceTerm(
     return true;
 }
 
-static uint64_t CurrentTimeMilliseconds() {
+static inline uint64_t CurrentTimeMilliseconds() {
     std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
