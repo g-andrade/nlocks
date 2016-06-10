@@ -77,7 +77,7 @@ struct Lock {
 ### <a name="The_spinning">The spinning</a> ###
 
 
-* It uses C++ 11 [compare_exchange_weak](http://en.cppreference.com/w/cpp/atomic/atomic/compare_exchangek)
+* It uses C++ 11 [compare_exchange_weak](http://en.cppreference.com/w/cpp/atomic/atomic/compare_exchange)
 * For each attempt, a new NIF call is scheduled; this brings some overhead to the table but it's crucial to play nice with the VM
 * If the timeout is other than 'infinity', for each attempt it compares the deadline against the current [steady_clock](http://en.cppreference.com/w/cpp/chrono/steady_clock) value; this feels excessive and might hurt performance.
 

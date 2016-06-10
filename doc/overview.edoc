@@ -54,7 +54,7 @@ struct Lock {
 * No explicit destruction needed
 
 == The spinning ==
-* It uses C++ 11 <a href="http://en.cppreference.com/w/cpp/atomic/atomic/compare_exchangek">compare_exchange_weak</a>
+* It uses C++ 11 <a href="http://en.cppreference.com/w/cpp/atomic/atomic/compare_exchange">compare_exchange_weak</a>
 * For each attempt, a new NIF call is scheduled; this brings some overhead to the table but it's crucial to play nice with the VM
 * If the timeout is other than 'infinity', for each attempt it compares the deadline against the current <a href="http://en.cppreference.com/w/cpp/chrono/steady_clock">steady_clock</a> value; this feels excessive and might hurt performance.
 
