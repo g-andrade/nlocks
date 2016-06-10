@@ -6,7 +6,10 @@
 
 <hr/>
 
-`nlocks' provides native spinlocks that can be shared between Erlang local processes.
+An experiment on Erlang native spinlocks:
+* Able to guarantee exclusive access to shared resources
+* Not dependent on a single process (no flooded mailbox as a bottleneck)
+* Able to deal with brutally killed processes that still held unreleased locks (more below)
 
 <pre lang="erlang">
 Lock = nlocks:new(),
@@ -20,4 +23,48 @@ end,
 % hello from &lt;0.69.0&gt; at {1465,509871,555028}
 % hello from &lt;0.67.0&gt; at {1465,509871,656021}
 % hello from &lt;0.68.0&gt; at {1465,509871,757031}
+</pre>
+
+== Brutal kills and unreleased locks ==
+Hackish solution. Other than setting up some sort of monitor in the Erlang land, I found no practical way to deal with these other than making use of _ownership_ objects, references to which should never leave the process under which they were created; the release therefore becomes dependent on the garbage collector calling their destructor, but this also makes it more convenient for regular kills that forget to clean up.
+
+== Ownership objects ==
+<pre lang="c++">
+struct Ownership {
+    ERL_NIF_TERM pid;
+    Lock* lock;
+};
+</pre>
+
+* They're created for lock acquisition in order to deal with the above problem
+* They should never leave their owning process
+* On successful acquisition, they link themselves to the lock and force it to live as long as they live
+* They guarantee only the lock owner can release the lock
+* No explicit destruction needed
+
+== Lock objects ==
+<pre lang="c++">
+struct Lock {
+    std::atomic&lt;Ownership*&gt; ownership;
+};
+</pre>
+
+* They keep an atomic pointer either set to null (free) or to the ownership object's address (locked)
+* Can be shared between local processes through messages, ETS tables, etc.
+* No explicit destruction needed
+
+== The spinning ==
+* It uses C++ 11 <a href="http://en.cppreference.com/w/cpp/atomic/atomic/compare_exchangek">compare_exchange_weak</a>
+* For each attempt, a new NIF call is scheduled; this brings some overhead to the table but it's crucial to play nice with the VM
+* If the timeout is other than 'infinity', for each attempt it compares the deadline against the current <a href="http://en.cppreference.com/w/cpp/chrono/steady_clock">steady_clock</a> value; this feels excessive and might hurt performance.
+
+== Internal metrics ==
+<pre lang="erlang">
+% nlocks:info()
+[{allocated_locks,2},
+ {allocated_ownerships,6},
+ {acquired_locks,1},
+ {contention,5}, % amount of processes attempting lock acquisition
+ {has_lockfree_counters,true},
+ {has_lockfree_ownership,true}]
 </pre>

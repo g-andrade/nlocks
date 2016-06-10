@@ -44,7 +44,7 @@ trx_fun() = fun(() -&gt; term())
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#acquire_ownership-1">acquire_ownership/1</a></td><td></td></tr><tr><td valign="top"><a href="#acquire_ownership-2">acquire_ownership/2</a></td><td></td></tr><tr><td valign="top"><a href="#new-0">new/0</a></td><td></td></tr><tr><td valign="top"><a href="#release_ownership-1">release_ownership/1</a></td><td></td></tr><tr><td valign="top"><a href="#transaction-2">transaction/2</a></td><td></td></tr><tr><td valign="top"><a href="#transaction-3">transaction/3</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#acquire_ownership-1">acquire_ownership/1</a></td><td></td></tr><tr><td valign="top"><a href="#acquire_ownership-2">acquire_ownership/2</a></td><td></td></tr><tr><td valign="top"><a href="#info-0">info/0</a></td><td></td></tr><tr><td valign="top"><a href="#new-0">new/0</a></td><td></td></tr><tr><td valign="top"><a href="#release_ownership-1">release_ownership/1</a></td><td></td></tr><tr><td valign="top"><a href="#transaction-2">transaction/2</a></td><td></td></tr><tr><td valign="top"><a href="#transaction-3">transaction/3</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -71,6 +71,19 @@ acquire_ownership(Lock::<a href="#type-lock">lock()</a>) -&gt; {ok, <a href="#ty
 
 <pre><code>
 acquire_ownership(Lock::<a href="#type-lock">lock()</a>, Timeout::timeout()) -&gt; {ok, <a href="#type-ownership">ownership()</a>} | {error, timeout}
+</code></pre>
+
+<br></br>
+
+
+
+<a name="info-0"></a>
+
+### info/0 ###
+
+
+<pre><code>
+info() -&gt; [{allocated_locks | allocated_ownerships | acquired_locks | contention, non_neg_integer()} | {has_lockfree_counters | has_lockfree_ownership, boolean()}, ...]
 </code></pre>
 
 <br></br>
