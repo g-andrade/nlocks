@@ -204,7 +204,7 @@ static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF
         return enif_make_badarg(env);
 
     if (not enif_get_uint(env, argv[1], &timeout)) {
-        if (not enif_is_identical(argv[2], enif_make_atom(env, "infinity")))
+        if (not enif_is_identical(argv[1], enif_make_atom(env, "infinity")))
             return enif_make_badarg(env);
     }
     else {
