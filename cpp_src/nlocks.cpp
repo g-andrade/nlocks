@@ -50,7 +50,7 @@ static ERL_NIF_TERM WrapResourceTerm(
 {
     return enif_make_tuple3(env,
             enif_make_atom(env, resourceTypeId),
-            enif_make_uint64(env, static_cast<uint64_t>(resourceTerm)),
+            enif_make_uint64(env, static_cast<ErlNifUInt64>(resourceTerm)),
             resourceTerm);
 }
 
@@ -170,7 +170,8 @@ static ERL_NIF_TERM AcquireOwnershipRecursive(ErlNifEnv* env, int argc, const ER
 
     assert(enif_get_resource(env, argv[0], lockResourceType, reinterpret_cast<void**>(&lockResource)));
     assert(enif_get_resource(env, argv[1], ownershipResourceType, reinterpret_cast<void**>(&ownershipResource)));
-    assert(enif_get_uint64(env, argv[2], &deadline));
+    static_assert(sizeof(ErlNifUInt64) <= sizeof(uint64_t), "ErlNifUInt64 can't be bigger than uint64_t");
+    assert(enif_get_uint64(env, argv[2], reinterpret_cast<ErlNifUInt64*>(&deadline)));
 
     if ((deadline > 0) && (CurrentTimeMilliseconds() >= deadline)) {
         contentionCount--;
@@ -241,7 +242,7 @@ static ERL_NIF_TERM AcquireOwnership(ErlNifEnv* env, int /*argc*/, const ERL_NIF
     ERL_NIF_TERM* newArgv = static_cast<ERL_NIF_TERM*>(malloc(sizeof(ERL_NIF_TERM) * newArgc));
     newArgv[0] = lockTerm;
     newArgv[1] = enif_make_resource(env, ownershipResource);
-    newArgv[2] = enif_make_uint64(env, deadline);
+    newArgv[2] = enif_make_uint64(env, static_cast<ErlNifUInt64>(deadline));
     return enif_schedule_nif(
             env, "AcquireOwnershipRecursive", 0,
             AcquireOwnershipRecursive, newArgc, newArgv);
@@ -282,16 +283,16 @@ static ERL_NIF_TERM GetInternalInfo(ErlNifEnv* env, int /*argc*/, const ERL_NIF_
             6,
             enif_make_tuple2(env,
                 enif_make_atom(env, "allocated_locks"),
-                enif_make_uint64(env, allocatedLocksCount.load())),
+                enif_make_uint64(env, static_cast<ErlNifUInt64>(allocatedLocksCount.load()))),
             enif_make_tuple2(env,
                 enif_make_atom(env, "allocated_ownerships"),
-                enif_make_uint64(env, allocatedOwnershipsCount.load())),
+                enif_make_uint64(env, static_cast<ErlNifUInt64>(allocatedOwnershipsCount.load()))),
             enif_make_tuple2(env,
                 enif_make_atom(env, "acquired_locks"),
-                enif_make_uint64(env, acquiredLocksCount.load())),
+                enif_make_uint64(env, static_cast<ErlNifUInt64>(acquiredLocksCount.load()))),
             enif_make_tuple2(env,
                 enif_make_atom(env, "contention"),
-                enif_make_uint64(env, contentionCount.load())),
+                enif_make_uint64(env, static_cast<ErlNifUInt64>(contentionCount.load()))),
             enif_make_tuple2(env,
                 enif_make_atom(env, "has_lockfree_counters"),
                 MakeNifBoolean(env,
