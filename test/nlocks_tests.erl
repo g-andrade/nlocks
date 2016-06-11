@@ -77,7 +77,7 @@ lost_reference_deallocation() ->
         fun () ->
                 SharedFun(nlocks:new())
         end,
-    deallocation(200000, IndependentFun, SharedFun, nothing).
+    deallocation(10000, IndependentFun, SharedFun, nothing).
 
 regular_use_deallocation() ->
     SharedFun =
@@ -88,7 +88,7 @@ regular_use_deallocation() ->
         fun () ->
                 SharedFun(nlocks:new())
         end,
-    deallocation(200000, IndependentFun, SharedFun, {ok, did_nothing}).
+    deallocation(10000, IndependentFun, SharedFun, {ok, did_nothing}).
 
 exception_deallocation() ->
     SharedFun =
@@ -99,7 +99,7 @@ exception_deallocation() ->
         fun () ->
                 SharedFun(nlocks:new())
         end,
-    deallocation(200000, IndependentFun, SharedFun, {'EXIT', 'oh noes'}).
+    deallocation(10000, IndependentFun, SharedFun, {'EXIT', 'oh noes'}).
 
 brutal_kill_deallocation() ->
     SharedFun =
