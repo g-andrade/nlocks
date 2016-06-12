@@ -33,6 +33,16 @@ end,
 
 ```
 
+```erlang
+
+Var = nvars:new(0),
+[spawn(fun() -> nvars:execute(Var, fun () -> nvals:store(nvals:get() + 1) end) end)
+ || _ <- lists:seq(1, 4242)],
+timer:sleep(1000),
+nvars:load(Var). % {ok, 4242}
+
+```
+
 
 ### <a name="Brutal_kills_and_unreleased_locks">Brutal kills and unreleased locks</a> ###
 
@@ -117,5 +127,6 @@ The NIF shared object will be dumped into the priv/ directory.
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="https://github.com/g-andrade/nlocks/blob/master/doc/nlocks.md" class="module">nlocks</a></td></tr></table>
+<tr><td><a href="https://github.com/g-andrade/nlocks/blob/master/doc/nlocks.md" class="module">nlocks</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/nlocks/blob/master/doc/nvars.md" class="module">nvars</a></td></tr></table>
 

@@ -3,12 +3,14 @@
   {description, "Native spinlocks"},
   {vsn, git},
   {modules, [
-             nlocks
+             nlocks,
+             nvars
             ]},
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  vegrandis
                  ]},
   {env, []}
  ]}.

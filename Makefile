@@ -22,8 +22,8 @@ $(DEPS_PLT):
 	@echo Building $(DEPS_PLT)
 	dialyzer --build_plt \
 	  --output_plt $(DEPS_PLT) \
+	  -r deps \
 	  --apps $(DEPS)
-#-r deps \
 
 dialyze: compile $(DEPS_PLT)
 	dialyzer --fullpath \

@@ -25,6 +25,14 @@ end,
 % hello from &lt;0.68.0&gt; at {1465,509871,757031}
 </pre>
 
+<pre lang="erlang">
+Var = nvars:new(0),
+[spawn(fun() -&gt; nvars:execute(Var, fun () -&gt; nvals:store(nvals:get() + 1) end) end)
+ || _ &lt;- lists:seq(1, 4242)],
+timer:sleep(1000),
+nvars:load(Var). % {ok, 4242}
+</pre>
+
 == Brutal kills and unreleased locks ==
 Hackish solution. Other than setting up some sort of monitor in the Erlang land, I found no practical way to deal with these other than making use of _ownership_ objects, references to which should never leave the process under which they were created; the release therefore becomes dependent on the garbage collector calling their destructor, but this also makes it more convenient for regularly terminated processes that forget to clean up.
 
