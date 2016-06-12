@@ -78,7 +78,12 @@ info() ->
 %% ------------------------------------------------------------------
 
 init() ->
-    ok = erlang:load_nif("./priv/nlocks_nif", 0).
+    PrivPath = case code:priv_dir(vegrandis) of
+               {error, bad_name} -> "priv";
+               ExistingPrivPath -> ExistingPrivPath
+           end,
+    NifPath = filename:join(PrivPath, "nlocks_nif"),
+    ok = erlang:load_nif(NifPath, 0).
 
 -spec ownership_transaction(Fun :: trx_fun(), {ok, ownership()} | {error, timeout})
         -> {ok, FunResult :: term()} | {error, timeout}.
