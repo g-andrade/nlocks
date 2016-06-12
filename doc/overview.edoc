@@ -1,6 +1,6 @@
 @author Guilherme Andrade <nlocks(at)gandrade(dot)net>
 @copyright 2016 Guilherme Andrade
-@version 1.0.0
+@version 1.0.3
 @title nlocks
 @doc `nlocks': Native spinlocks for Erlang
 
