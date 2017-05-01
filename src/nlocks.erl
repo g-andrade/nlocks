@@ -78,7 +78,7 @@ info() ->
 %% ------------------------------------------------------------------
 
 init() ->
-    PrivPath = case code:priv_dir(vegrandis) of
+    PrivPath = case code:priv_dir(nlocks) of
                {error, bad_name} -> "priv";
                ExistingPrivPath -> ExistingPrivPath
            end,
