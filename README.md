@@ -4,7 +4,7 @@
 
 Copyright (c) 2016 Guilherme Andrade
 
-__Version:__ 1.0.3-1-gae0fecf
+__Version:__ 1.1.0
 
 __Authors:__ Guilherme Andrade ([`nlocks(at)gandrade(dot)net`](mailto:nlocks(at)gandrade(dot)net)).
 
