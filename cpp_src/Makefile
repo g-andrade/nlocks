@@ -6,7 +6,7 @@ endif
 
 CXX=g++
 RM=rm -f
-INC=-I$(ERL_INCLUDE)
+INC=
 CPPFLAGS=-std=c++11 -Wall -Wextra -Wpedantic -fPIC -O2 $(INC)
 LDLIBS=
 

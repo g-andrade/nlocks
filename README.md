@@ -4,11 +4,12 @@
 
 Copyright (c) 2016 Guilherme Andrade
 
-__Version:__ 1.0.3
+__Version:__ 1.0.3-1-gae0fecf
 
 __Authors:__ Guilherme Andrade ([`nlocks(at)gandrade(dot)net`](mailto:nlocks(at)gandrade(dot)net)).
 
 `nlocks`: Native spinlocks for Erlang
+
 
 ---------
 
@@ -35,7 +36,6 @@ end,
 
 
 ### <a name="Brutal_kills_and_unreleased_locks">Brutal kills and unreleased locks</a> ###
-
 
 Hackish solution. Other than setting up some sort of monitor in the Erlang land, I found no practical way to deal with these other than making use of _ownership_ objects, references to which should never leave the process under which they were created; the release therefore becomes dependent on the garbage collector calling their destructor, but this also makes it more convenient for regularly terminated processes that forget to clean up.
 
@@ -76,7 +76,6 @@ struct Lock {
 
 
 ### <a name="The_spinning">The spinning</a> ###
-
 
 * It uses C++ 11 [compare_exchange_weak](http://en.cppreference.com/w/cpp/atomic/atomic/compare_exchange)
 * For each attempt, a new NIF call is scheduled; this brings some overhead to the table but it's crucial to play nice with the VM
