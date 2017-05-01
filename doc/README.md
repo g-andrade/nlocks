@@ -10,7 +10,6 @@ __Authors:__ Guilherme Andrade ([`nlocks(at)gandrade(dot)net`](mailto:nlocks(at)
 
 `nlocks`: Native spinlocks for Erlang
 
-
 ---------
 
 An experiment on Erlang native spinlocks:
@@ -116,5 +115,5 @@ The NIF shared object will be dumped into the priv/ directory.
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="https://github.com/g-andrade/nlocks/blob/master/doc/nlocks.md" class="module">nlocks</a></td></tr></table>
+<tr><td><a href="nlocks.md" class="module">nlocks</a></td></tr></table>
 

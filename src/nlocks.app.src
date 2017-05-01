@@ -1,14 +1,24 @@
 {application, nlocks,
- [
-  {description, "Native spinlocks"},
+ [{description, "Native spinlocks"},
   {vsn, git},
-  {modules, [
-             nlocks
-            ]},
-  {registered, []},
-  {applications, [
-                  kernel,
-                  stdlib
-                 ]},
-  {env, []}
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env,[]},
+  {modules,
+   [nlocks]},
+
+  {maintainers, ["Guilherme Andrade"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/g-andrade/nlocks"}]},
+  {files,
+   ["src/*.erl",
+    "src/*.src",
+    "cpp_src/*.{h,cpp}",
+    "cpp_src/Makefile",
+    "rebar.config",
+    "rebar.lock",
+    "priv/.empty"
+   ]}
  ]}.
